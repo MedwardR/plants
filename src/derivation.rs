@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::str::FromStr;
 
 pub struct LSystem {
     pub rules: HashMap<char, String>
