@@ -173,7 +173,7 @@ impl Interpreter {
                     turtle.state = previous;
                 }
             }
-            _ => eprintln!("Unrecognized command: '{}'", command)
+            _ => { }
         }
     }
 }
