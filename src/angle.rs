@@ -1,0 +1,88 @@
+use std::ops::{Add, AddAssign, Sub, SubAssign};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+#[derive(Debug, Clone, Copy)]
+pub struct Angle {
+    value: f32,
+}
+
+impl Serialize for Angle {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.to_degrees().serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Angle {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let degrees = f32::deserialize(deserializer)?;
+        Ok(Self::from_degrees(degrees))
+    }
+}
+
+impl Add for Angle {
+    type Output = Angle;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self::Output {
+            value: self.value + rhs.value
+        }
+    }
+}
+
+impl Sub for Angle {
+    type Output = Angle;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self::Output {
+            value: self.value - rhs.value
+        }
+    }
+}
+
+impl AddAssign for Angle {
+    fn add_assign(&mut self, rhs: Self) {
+        self.value += rhs.value;
+    }
+}
+
+impl SubAssign for Angle {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.value -= rhs.value;
+    }
+}
+
+impl Angle {
+    pub const ZERO: Angle = Angle { value: 0.0 };
+
+    pub const fn from_degrees(degrees: f32) -> Self {
+        Self {
+            value: degrees.to_radians(),
+        }
+    }
+
+    pub const fn from_radians(radians: f32) -> Self {
+        Self {
+            value: radians,
+        }
+    }
+
+    pub fn to_degrees(&self) -> f32 {
+        self.value.to_degrees()
+    }
+
+    pub fn to_radians(&self) -> f32 {
+        self.value
+    }
+
+    pub fn sin(&self) -> Self {
+        Self {
+            value: self.value.sin()
+        }
+    }
+
+    pub fn cos(&self) -> Self {
+        Self {
+            value: self.value.cos()
+        }
+    }
+}

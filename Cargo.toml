@@ -5,3 +5,5 @@ edition = "2024"
 
 [dependencies]
 macroquad = "0.4.16"
+toml = "1.2.1"
+serde = { version = "1.0.229", features = ["derive"] }

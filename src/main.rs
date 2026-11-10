@@ -1,42 +1,37 @@
-pub mod geometry;
 pub mod derivation;
+pub mod turtle;
+pub mod interpreter;
+pub mod angle;
 
+use std::fs;
 use std::ops::{Add, Mul};
 use macroquad::prelude::*;
 use crate::derivation::LSystem;
-use crate::geometry::{Angle, Interpreter, Turtle, TurtleState};
 
 #[macroquad::main("Terrarium")]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
-    let mut engine = LSystem::new();
-    engine.add_rule('X', "F-[[X]+X]+F[+FX]-X");
-    engine.add_rule('F', "FF");
-
-    const AXIOM: &str = "X";
-    const MOVEMENT_STEP: f32 = 5.0;
-    const ROTATION_STEP: Angle = Angle::from_degrees(22.5);
-
-    let mut iterations = 0;
-    let mut drawing_invalid = true;
+    let toml = fs::read_to_string("./examples/sierpinski.toml")?;
+    let mut engine = LSystem::from_toml(toml)?;
 
     let mut lines = Vec::new();
     let mut content_dimensions = Rect::default();
+    let mut drawing_invalid = true;
 
     loop {
         clear_background(BLACK);
 
         if is_key_pressed(KeyCode::Up) {
-            iterations = (iterations + 1).max(0);
+            engine.n += 1;
             drawing_invalid = true;
         }
-        if is_key_pressed(KeyCode::Down) {
-            iterations = (iterations - 1).max(0);
+        if is_key_pressed(KeyCode::Down) && engine.n > 0 {
+            engine.n -= 1;
             drawing_invalid = true;
         }
 
         if drawing_invalid {
-            lines = generate_drawing(&engine, AXIOM, MOVEMENT_STEP, ROTATION_STEP, iterations);
+            lines = generate_drawing(&engine);
             content_dimensions = calculate_boundaries(&lines);
             drawing_invalid = false;
         }
@@ -67,22 +62,18 @@ async fn main() {
             draw_line(a.x, a.y, b.x, b.y, 4.0, DARKGREEN);
         }
 
-        draw_text(iterations.to_string(), PADDING, PADDING, 24.0, WHITE);
+        draw_text(engine.n.to_string(), PADDING, PADDING, 24.0, WHITE);
         next_frame().await
     }
 }
 
-fn generate_drawing(engine: &LSystem, axiom: impl Into<String>, movement_step: f32, rotation_step: Angle, iterations: i32) -> Vec<(Vec2, Vec2)> {
+fn generate_drawing(engine: &LSystem) -> Vec<(Vec2, Vec2)> {
 
-    let instructions = engine.derive(axiom, iterations);
+    let instructions = engine.derive();
     let mut lines: Vec<(Vec2, Vec2)> = Vec::new();
 
-    let mut turtle = Turtle::new(TurtleState {
-        rotation: Angle::from_degrees(-90.0),
-        ..Default::default()
-    });
-
-    let mut interpreter = Interpreter::new(movement_step, rotation_step);
+    let mut turtle = engine.turtle();
+    let mut interpreter = engine.interpreter();
 
     for command in instructions.chars() {
         let start = turtle.state.position;

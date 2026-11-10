@@ -1,0 +1,10 @@
+axiom = "F-G-G"
+n = 6
+
+[rules]
+F = "F-G+F+G-F"
+G = "GG"
+
+[view]
+angle = 0.0
+delta = 120.0
