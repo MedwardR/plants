@@ -1,4 +1,3 @@
-use std::mem;
 use crate::angle::Angle;
 use macroquad::math::Vec2;
 
