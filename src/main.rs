@@ -1,12 +1,14 @@
-pub mod derivation;
-pub mod turtle;
-pub mod interpreter;
 pub mod angle;
+pub mod derivation;
+pub mod drawing;
+pub mod interpreter;
+pub mod turtle;
 
 use std::fs;
 use std::ops::{Add, Mul};
 use macroquad::prelude::*;
 use crate::derivation::LSystem;
+use crate::drawing::{draw_polygon, Drawing};
 
 #[macroquad::main("Terrarium")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -14,7 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let toml = fs::read_to_string("./examples/sierpinski.toml")?;
     let mut engine = LSystem::from_toml(toml)?;
 
-    let mut lines = Vec::new();
+    let mut drawing = Drawing::new();
     let mut content_dimensions = Rect::default();
     let mut drawing_invalid = true;
 
@@ -31,8 +33,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         if drawing_invalid {
-            lines = generate_drawing(&engine);
-            content_dimensions = calculate_boundaries(&lines);
+            drawing = generate_drawing(&engine);
+            content_dimensions = calculate_boundaries(&drawing);
             drawing_invalid = false;
         }
 
@@ -55,11 +57,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         draw_circle(offset.x, offset.y, 4.0, RED);
         draw_line(offset.x, offset.y, offset.x + 20.0, offset.y - 20.0, 2.0, RED);
 
-        for (start, end) in &lines {
+        for (start, end) in &drawing.lines {
             let a = start.mul(scale).add(offset);
             let b = end.mul(scale).add(offset);
 
             draw_line(a.x, a.y, b.x, b.y, 4.0, DARKGREEN);
+        }
+        for vertices in &drawing.polygons {
+            draw_polygon(vertices, GREEN);
         }
 
         draw_text(engine.n.to_string(), PADDING, PADDING, 24.0, WHITE);
@@ -67,57 +72,51 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-fn generate_drawing(engine: &LSystem) -> Vec<(Vec2, Vec2)> {
-
+fn generate_drawing(engine: &LSystem) -> Drawing {
     let instructions = engine.derive();
+
     let mut lines: Vec<(Vec2, Vec2)> = Vec::new();
+    let mut polygons: Vec<Vec<Vec2>> = Vec::new();
 
     let mut turtle = engine.turtle();
     let mut interpreter = engine.interpreter();
 
     for command in instructions.chars() {
-        let start = turtle.state.position;
+        let vertices = interpreter.process_command(&mut turtle, &command);
 
-        interpreter.process_command(&mut turtle, &command);
-
-        if turtle.active && turtle.state.position != start {
-            lines.push((start, turtle.state.position));
+        if vertices.len() == 2 {
+            let value = (vertices[0], vertices[1]);
+            lines.push(value);
+        }
+        else if vertices.len() > 2 {
+            polygons.push(vertices);
         }
     }
 
-    lines
+    Drawing {
+        lines,
+        polygons,
+    }
 }
 
-fn calculate_boundaries(lines: &Vec<(Vec2, Vec2)>) -> Rect {
+fn calculate_boundaries(drawing: &Drawing) -> Rect {
     let mut min_x = 0.0;
     let mut min_y = 0.0;
     let mut max_x = 0.0;
     let mut max_y = 0.0;
 
-    for (start, end) in lines {
-        if start.x < min_x {
-            min_x = start.x;
+    for v in drawing.vertices() {
+        if v.x < min_x {
+            min_x = v.x;
         }
-        if start.y < min_y {
-            min_y = start.y;
+        if v.y < min_y {
+            min_y = v.y;
         }
-        if end.x < min_x {
-            min_x = end.x;
+        if v.x > max_x {
+            max_x = v.x;
         }
-        if end.y < min_y {
-            min_y = end.y;
-        }
-        if start.x > max_x {
-            max_x = start.x;
-        }
-        if start.y > max_y {
-            max_y = start.y;
-        }
-        if end.x > max_x {
-            max_x = end.x;
-        }
-        if end.y > max_y {
-            max_y = end.y;
+        if v.y > max_y {
+            max_y = v.y;
         }
     }
 

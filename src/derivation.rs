@@ -62,13 +62,9 @@ impl LSystem {
     }
 
     pub fn turtle(&self) -> Turtle {
-        Turtle {
-            state: TurtleState {
-                rotation: self.view.angle,
-                ..TurtleState::default()
-            },
-            ..Turtle::default()
-        }
+        let mut turtle = Turtle::default();
+        turtle.state.rotation = self.view.angle;
+        turtle
     }
     
     pub fn interpreter(&self) -> Interpreter {

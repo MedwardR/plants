@@ -1,4 +1,5 @@
-use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::f32::consts::{PI, TAU};
+use std::ops::{Add, AddAssign, Rem, Sub, SubAssign};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 #[derive(Debug, Clone, Copy)]
@@ -8,7 +9,7 @@ pub struct Angle {
 
 impl Serialize for Angle {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.to_degrees().serialize(serializer)
+        self.degrees().serialize(serializer)
     }
 }
 
@@ -39,6 +40,16 @@ impl Sub for Angle {
     }
 }
 
+impl Rem for Angle {
+    type Output = Angle;
+
+    fn rem(self, rhs: Self) -> Self::Output {
+        Self::Output {
+            value: self.value % rhs.value
+        }
+    }
+}
+
 impl AddAssign for Angle {
     fn add_assign(&mut self, rhs: Self) {
         self.value += rhs.value;
@@ -53,6 +64,8 @@ impl SubAssign for Angle {
 
 impl Angle {
     pub const ZERO: Angle = Angle { value: 0.0 };
+    pub const PI: Angle = Angle { value: PI };
+    pub const TAU: Angle = Angle { value: TAU };
 
     pub const fn from_degrees(degrees: f32) -> Self {
         Self {
@@ -66,11 +79,11 @@ impl Angle {
         }
     }
 
-    pub fn to_degrees(&self) -> f32 {
+    pub fn degrees(&self) -> f32 {
         self.value.to_degrees()
     }
 
-    pub fn to_radians(&self) -> f32 {
+    pub fn radians(&self) -> f32 {
         self.value
     }
 
