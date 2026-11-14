@@ -1,8 +1,10 @@
 axiom = "A"
-n = 5
+n = 4
 
-[rules]
+[productions]
 A = "[-F'L''!A][+F''L'!A]"
+
+[homomorphism]
 L = "[-{-f+f+f-|-f+f+f}]"
 
 [view]

@@ -3,17 +3,21 @@ use crate::interpreter::Interpreter;
 use crate::turtle::Turtle;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::mem;
 use macroquad::color::Color;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct LSystem {
     pub axiom: String,
     pub n: usize,
-    pub rules: HashMap<String, String>,
+    pub productions: HashMap<String, String>,
+    pub homomorphism: HashMap<String, String>,
     pub view: ViewConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ViewConfig {
     pub angle: Angle,
     pub delta: Angle,
@@ -22,13 +26,23 @@ pub struct ViewConfig {
     pub thickness: f32,
 }
 
+impl Default for LSystem {
+    fn default() -> Self {
+        Self {
+            axiom: String::new(),
+            n: 1,
+            productions: HashMap::new(),
+            homomorphism: HashMap::new(),
+            view: ViewConfig::default(),
+        }
+    }
+}
+
 impl LSystem {
     pub fn new(axiom: impl Into<String>) -> Self {
         Self {
             axiom: axiom.into(),
-            n: 0,
-            rules: HashMap::new(),
-            view: ViewConfig::default(),
+            ..Default::default()
         }
     }
 
@@ -37,28 +51,34 @@ impl LSystem {
     }
 
     pub fn add_rule(&mut self, c: char, s: impl Into<String>) {
-        self.rules.insert(c.to_string(), s.into());
+        self.productions.insert(c.to_string(), s.into());
     }
 
     pub fn derive(&self) -> String {
         let mut source = self.axiom.clone();
+        let mut result = String::new();
 
         for _ in 0..self.n {
-            let mut result = String::new();
-
             for ch in source.chars() {
-                if let Some(replacement) = self.rules.get(&ch.to_string()) {
+                if let Some(replacement) = self.productions.get(&ch.to_string()) {
                     result += replacement;
                 }
                 else {
                     result.push(ch);
                 }
             }
-
-            source = result;
+            source = mem::take(&mut result);
         }
 
-        source
+        for ch in source.chars() {
+            if let Some(replacement) = self.homomorphism.get(&ch.to_string()) {
+                result += replacement;
+            }
+            else {
+                result.push(ch);
+            }
+        }
+        result
     }
 
     pub fn to_toml(&self) -> Result<String, toml::ser::Error> {

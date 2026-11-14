@@ -54,9 +54,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             PADDING + (screen_dimensions.y - content_dimensions.h * scale) / 2.0 - content_dimensions.y * scale,
         );
 
-        // draw_circle(offset.x, offset.y, 4.0, RED);
-        // draw_line(offset.x, offset.y, offset.x + 20.0, offset.y - 20.0, 2.0, RED);
-
         for line in &drawing.lines {
             let a = line.start.mul(scale).add(offset);
             let b = line.end.mul(scale).add(offset);
@@ -106,10 +103,10 @@ fn generate_drawing(engine: &LSystem) -> Drawing {
         }
     }
 
-    if let Some(max_thinness) = lines_thinness.iter().copied().max() {
+    if let Some(denominator) = lines_thinness.iter().copied().max().map(|v| v + 1) {
         for (line, thinness) in lines.iter_mut().zip(lines_thinness) {
-            let ratio = if max_thinness != 0 {
-                1.0 - thinness as f32 / max_thinness as f32
+            let ratio = if denominator != 0 {
+                1.0 - thinness as f32 / denominator as f32
             } else {
                 1.0
             };

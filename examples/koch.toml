@@ -1,11 +1,8 @@
 axiom = "F--F--F"
-n = 4
+n = 3
 
-[rules]
+[productions]
 F = "F+F--F+F"
 
 [view]
-angle = 0.0
 delta = 60.0
-colors = ["#FFFFFF"]
-thickness = 4.0
