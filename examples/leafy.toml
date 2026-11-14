@@ -1,0 +1,16 @@
+axiom = "A"
+n = 5
+
+[rules]
+A = "[-F'L''!A][+F''L'!A]"
+L = "[-{-f+f+f-|-f+f+f}]"
+
+[view]
+angle = -90.0
+delta = 22.5
+colors = [
+    "#734633",
+    "#026641",
+    "#08593b",
+]
+thickness = 8.0

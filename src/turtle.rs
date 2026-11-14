@@ -1,5 +1,5 @@
+use macroquad::prelude::*;
 use crate::angle::Angle;
-use macroquad::math::Vec2;
 
 pub struct Turtle {
     pub state: TurtleState,
@@ -13,6 +13,8 @@ pub struct Turtle {
 pub struct TurtleState {
     pub position: Vec2,
     pub rotation: Angle,
+    pub color: Color,
+    pub thinness: usize,
 }
 
 impl Default for TurtleState {
@@ -20,6 +22,8 @@ impl Default for TurtleState {
         Self {
             position: Vec2::ZERO,
             rotation: Angle::ZERO,
+            color: WHITE,
+            thinness: 0,
         }
     }
 }
@@ -43,8 +47,8 @@ impl Turtle {
 
     pub fn forward(&mut self, amount: f32) {
         let direction = Vec2::new(
-            self.state.rotation.cos().radians(),
-            self.state.rotation.sin().radians(),
+            self.state.rotation.cos(),
+            self.state.rotation.sin(),
         );
 
         self.state.position += direction * amount;
@@ -59,13 +63,11 @@ impl Turtle {
     }
 
     pub fn left(&mut self, amount: Angle) {
-        let value = self.state.rotation - amount;
-        self.state.rotation = value % Angle::TAU;
+        self.state.rotation = (self.state.rotation - amount) % Angle::TAU;
     }
 
     pub fn right(&mut self, amount: Angle) {
-        let value = self.state.rotation + amount;
-        self.state.rotation += value % Angle::TAU;
+        self.state.rotation = (self.state.rotation + amount) % Angle::TAU;
     }
 
     pub fn pen_down(&mut self) {

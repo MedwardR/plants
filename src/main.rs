@@ -8,12 +8,12 @@ use std::fs;
 use std::ops::{Add, Mul};
 use macroquad::prelude::*;
 use crate::derivation::LSystem;
-use crate::drawing::{draw_polygon, Drawing};
+use crate::drawing::{draw_polygon, Drawing, Line, Polygon};
 
 #[macroquad::main("Terrarium")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
-    let toml = fs::read_to_string("./examples/sierpinski.toml")?;
+    let toml = fs::read_to_string("./examples/leafy.toml")?;
     let mut engine = LSystem::from_toml(toml)?;
 
     let mut drawing = Drawing::new();
@@ -54,17 +54,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             PADDING + (screen_dimensions.y - content_dimensions.h * scale) / 2.0 - content_dimensions.y * scale,
         );
 
-        draw_circle(offset.x, offset.y, 4.0, RED);
-        draw_line(offset.x, offset.y, offset.x + 20.0, offset.y - 20.0, 2.0, RED);
+        // draw_circle(offset.x, offset.y, 4.0, RED);
+        // draw_line(offset.x, offset.y, offset.x + 20.0, offset.y - 20.0, 2.0, RED);
 
-        for (start, end) in &drawing.lines {
-            let a = start.mul(scale).add(offset);
-            let b = end.mul(scale).add(offset);
+        for line in &drawing.lines {
+            let a = line.start.mul(scale).add(offset);
+            let b = line.end.mul(scale).add(offset);
 
-            draw_line(a.x, a.y, b.x, b.y, 4.0, DARKGREEN);
+            draw_line(a.x, a.y, b.x, b.y, line.thickness, line.color);
         }
-        for vertices in &drawing.polygons {
-            draw_polygon(vertices, GREEN);
+        for polygon in &drawing.polygons {
+            let transformed: Vec<_> = polygon.vertices
+                .iter()
+                .map(|v| v.mul(scale).add(offset))
+                .collect();
+
+            draw_polygon(transformed, polygon.color);
         }
 
         draw_text(engine.n.to_string(), PADDING, PADDING, 24.0, WHITE);
@@ -75,8 +80,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn generate_drawing(engine: &LSystem) -> Drawing {
     let instructions = engine.derive();
 
-    let mut lines: Vec<(Vec2, Vec2)> = Vec::new();
-    let mut polygons: Vec<Vec<Vec2>> = Vec::new();
+    let mut lines: Vec<Line> = Vec::new();
+    let mut lines_thinness: Vec<usize> = Vec::new();
+    let mut polygons: Vec<Polygon> = Vec::new();
 
     let mut turtle = engine.turtle();
     let mut interpreter = engine.interpreter();
@@ -85,11 +91,30 @@ fn generate_drawing(engine: &LSystem) -> Drawing {
         let vertices = interpreter.process_command(&mut turtle, &command);
 
         if vertices.len() == 2 {
-            let value = (vertices[0], vertices[1]);
+            let value = Line::new(
+                vertices[0],
+                vertices[1],
+                turtle.state.color,
+                engine.view.thickness,
+            );
             lines.push(value);
+            lines_thinness.push(turtle.state.thinness);
         }
         else if vertices.len() > 2 {
-            polygons.push(vertices);
+            let value = Polygon::new(vertices, turtle.state.color);
+            polygons.push(value);
+        }
+    }
+
+    if let Some(max_thinness) = lines_thinness.iter().copied().max() {
+        for (line, thinness) in lines.iter_mut().zip(lines_thinness) {
+            let ratio = if max_thinness != 0 {
+                1.0 - thinness as f32 / max_thinness as f32
+            } else {
+                1.0
+            };
+
+            line.thickness = engine.view.thickness * ratio;
         }
     }
 

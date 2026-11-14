@@ -1,10 +1,12 @@
-axiom = "F-G-G"
-n = 6
+axiom = "F+G+G"
+n = 5
 
 [rules]
-F = "F-G+F+G-F"
+F = "F+G-F-G+F"
 G = "GG"
 
 [view]
 angle = 0.0
 delta = 120.0
+colors = ["#FFFFFF"]
+thickness = 4.0

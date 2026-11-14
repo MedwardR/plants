@@ -87,15 +87,11 @@ impl Angle {
         self.value
     }
 
-    pub fn sin(&self) -> Self {
-        Self {
-            value: self.value.sin()
-        }
+    pub fn sin(&self) -> f32 {
+        self.value.sin()
     }
 
-    pub fn cos(&self) -> Self {
-        Self {
-            value: self.value.cos()
-        }
+    pub fn cos(&self) -> f32 {
+        self.value.cos()
     }
 }

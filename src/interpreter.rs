@@ -6,12 +6,14 @@ use crate::turtle::Turtle;
 
 pub struct Interpreter {
     pub view: ViewConfig,
+    pub color_index: usize,
 }
 
 impl Interpreter {
     pub fn new(view: &ViewConfig) -> Self {
         Self {
             view: view.clone(),
+            color_index: 0,
         }
     }
 
@@ -58,13 +60,23 @@ impl Interpreter {
             '}' => {
                 turtle.end_polygon();
             },
+            '.' => {
+                turtle.record_vertex();
+            },
+            '!' => {
+                turtle.state.thinness += 1;
+            },
+            '\'' => {
+                self.color_index = (self.color_index + 1) % self.view.colors.len();
+                turtle.state.color = self.view.colors[self.color_index];
+            },
             _ => { }
         }
 
         if turtle.pen_active && turtle.state.position != start {
             vec![start, turtle.state.position]
         }
-        else if turtle.polygon_active && turtle.polygon.len() > 0 {
+        else if !turtle.polygon_active && turtle.polygon.len() > 0 {
             mem::take(&mut turtle.polygon)
         }
         else {

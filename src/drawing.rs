@@ -1,8 +1,22 @@
 use macroquad::prelude::*;
 
 pub struct Drawing {
-    pub lines: Vec<(Vec2, Vec2)>,
-    pub polygons: Vec<Vec<Vec2>>,
+    pub lines: Vec<Line>,
+    pub polygons: Vec<Polygon>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Line {
+    pub start: Vec2,
+    pub end: Vec2,
+    pub color: Color,
+    pub thickness: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct Polygon {
+    pub vertices: Vec<Vec2>,
+    pub color: Color,
 }
 
 impl Drawing {
@@ -16,18 +30,38 @@ impl Drawing {
     pub fn vertices(&self) -> Vec<Vec2> {
         self.lines
             .iter()
-            .flat_map(|(a, b)| [*a, *b])
+            .flat_map(|line| [line.start, line.end])
             .chain(
                 self.polygons
                     .iter()
-                    .flat_map(|polygon| polygon.iter().copied())
+                    .flat_map(|polygon| polygon.vertices.iter().copied())
             )
             .collect()
     }
 }
 
-pub fn draw_polygon(points: &[Vec2], color: Color) -> bool {
-    if let Some(triangles) = triangulate_polygon(points) {
+impl Line {
+    pub fn new(start: Vec2, end: Vec2, color: Color, thickness: f32) -> Self {
+        Self {
+            start,
+            end,
+            color,
+            thickness,
+        }
+    }
+}
+
+impl Polygon {
+    pub fn new(vertices: Vec<Vec2>, color: Color) -> Self {
+        Self {
+            vertices,
+            color
+        }
+    }
+}
+
+pub fn draw_polygon(points: impl AsRef<[Vec2]>, color: Color) -> bool {
+    if let Some(triangles) = triangulate_polygon(points.as_ref()) {
         
         for triangle in triangles {
             draw_triangle(
