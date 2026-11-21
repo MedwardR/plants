@@ -1,11 +1,17 @@
+name = "Leafy plant"
+desc = "Polygon feature example"
+
+[state]
 axiom = "A"
 n = 4
 
-[productions]
-A = "[-F'L''!A][+F''L'!A]"
-
-[homomorphism]
-L = "[-{-f+f+f-|-f+f+f}]"
+[rules]
+productions = [
+    "A --> [-F'L''!A][+F''L'!A]",
+]
+homomorphism = [
+    "L --> [-{-f+f+f-|-f+f+f}]",
+]
 
 [view]
 angle = -90.0

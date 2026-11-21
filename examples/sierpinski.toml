@@ -1,9 +1,19 @@
-axiom = "F+G+G"
+name = "Sierpiński triangle"
+desc = "https://en.wikipedia.org/wiki/Sierpi%C5%84ski_triangle"
+
+[state]
+axiom = "A+B+B"
 n = 5
 
-[productions]
-F = "F+G-F-G+F"
-G = "GG"
+[rules]
+productions = [
+    "A --> A+B-A-B+A",
+    "B --> BB",
+]
+homomorphism = [
+    "A --> F",
+    "B --> F",
+]
 
 [view]
 delta = 120.0

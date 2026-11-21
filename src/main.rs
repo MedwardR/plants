@@ -12,7 +12,7 @@ use std::ops::{Add, Mul};
 
 #[macroquad::main("Terrarium")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let toml = fs::read_to_string("./examples/leafy.toml")?;
+    let toml = fs::read_to_string("./examples/kelp.toml")?;
     let mut engine = LSystem::from_toml(toml)?;
 
     let mut drawing = Drawing::new();
@@ -23,11 +23,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         clear_background(BLACK);
 
         if is_key_pressed(KeyCode::Up) {
-            engine.n += 1;
+            engine.state.n += 1;
             drawing_invalid = true;
         }
-        if is_key_pressed(KeyCode::Down) && engine.n > 0 {
-            engine.n -= 1;
+        if is_key_pressed(KeyCode::Down) && engine.state.n > 0 {
+            engine.state.n -= 1;
             drawing_invalid = true;
         }
 
@@ -70,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             draw_polygon(transformed, polygon.color);
         }
 
-        draw_text(engine.n.to_string(), PADDING, PADDING, 24.0, WHITE);
+        draw_text(engine.state.n.to_string(), PADDING, PADDING, 24.0, WHITE);
         next_frame().await
     }
 }

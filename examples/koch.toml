@@ -1,8 +1,14 @@
+name = "Koch snowflake"
+desc = "https://en.wikipedia.org/wiki/Koch_snowflake"
+
+[state]
 axiom = "F--F--F"
 n = 3
 
-[productions]
-F = "F+F--F+F"
+[rules]
+productions = [
+    "F --> F+F--F+F"
+]
 
 [view]
 delta = 60.0

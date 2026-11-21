@@ -1,0 +1,16 @@
+name = "Kelp plant"
+
+[state]
+axiom = "F"
+n = 5
+
+[rules]
+productions = [
+    "F -- 0.33 --> F[+F]F[-F]F",
+    "F -- 0.33 --> F[+F]F",
+    "F -- 0.34 --> F[-F]F",
+]
+
+[view]
+angle = -90.0
+delta = 25.7

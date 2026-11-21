@@ -1,19 +1,41 @@
 use crate::angle::Angle;
 use crate::interpreter::Interpreter;
 use crate::turtle::Turtle;
-use macroquad::color::Color;
-use serde::{Deserialize, Serialize};
+use macroquad::color::{Color, WHITE};
+use rand::{Rng, RngExt};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
-use std::mem;
+use std::fmt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LSystem {
+    pub name: String,
+    pub desc: String,
+    pub state: StateConfig,
+    pub rules: RulesConfig,
+    pub view: ViewConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct StateConfig {
     pub axiom: String,
     pub n: usize,
-    pub productions: HashMap<String, String>,
-    pub homomorphism: HashMap<String, String>,
-    pub view: ViewConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RulesConfig {
+    pub productions: Vec<Production>,
+    pub homomorphism: Vec<Production>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Production {
+    pub predecessor: String,
+    pub successor: String,
+    pub probability: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,77 +43,44 @@ pub struct LSystem {
 pub struct ViewConfig {
     pub angle: Angle,
     pub delta: Angle,
+
     #[serde(with = "color_serde")]
     pub colors: Vec<Color>,
+
     pub thickness: f32,
 }
+
+// -----------------------------------------------------------------------------
+// Defaults
+// -----------------------------------------------------------------------------
 
 impl Default for LSystem {
     fn default() -> Self {
         Self {
-            axiom: String::new(),
-            n: 1,
-            productions: HashMap::new(),
-            homomorphism: HashMap::new(),
+            name: String::new(),
+            desc: String::new(),
+            state: StateConfig::default(),
+            rules: RulesConfig::default(),
             view: ViewConfig::default(),
         }
     }
 }
 
-impl LSystem {
-    pub fn new(axiom: impl Into<String>) -> Self {
+impl Default for StateConfig {
+    fn default() -> Self {
         Self {
-            axiom: axiom.into(),
-            ..Default::default()
+            axiom: String::new(),
+            n: 1,
         }
     }
+}
 
-    pub fn from_toml(toml: impl Into<String>) -> Result<Self, toml::de::Error> {
-        toml::from_str(toml.into().as_str())
-    }
-
-    pub fn add_rule(&mut self, c: char, s: impl Into<String>) {
-        self.productions.insert(c.to_string(), s.into());
-    }
-
-    pub fn derive(&self) -> String {
-        let mut source = self.axiom.clone();
-        let mut result = String::new();
-
-        for _ in 0..self.n {
-            for ch in source.chars() {
-                if let Some(replacement) = self.productions.get(&ch.to_string()) {
-                    result += replacement;
-                } else {
-                    result.push(ch);
-                }
-            }
-            source = mem::take(&mut result);
+impl Default for RulesConfig {
+    fn default() -> Self {
+        Self {
+            productions: Vec::new(),
+            homomorphism: Vec::new(),
         }
-
-        for ch in source.chars() {
-            if let Some(replacement) = self.homomorphism.get(&ch.to_string()) {
-                result += replacement;
-            } else {
-                result.push(ch);
-            }
-        }
-        result
-    }
-
-    pub fn to_toml(&self) -> Result<String, toml::ser::Error> {
-        toml::to_string_pretty(&self)
-    }
-
-    pub fn turtle(&self) -> Turtle {
-        let mut turtle = Turtle::default();
-        turtle.state.rotation = self.view.angle;
-        turtle.state.color = self.view.colors[0];
-        turtle
-    }
-
-    pub fn interpreter(&self) -> Interpreter {
-        Interpreter::new(&self.view)
     }
 }
 
@@ -100,10 +89,360 @@ impl Default for ViewConfig {
         Self {
             angle: Angle::ZERO,
             delta: Angle::from_degrees(35.0),
-            colors: vec![macroquad::color::WHITE],
+            colors: vec![WHITE],
             thickness: 4.0,
         }
     }
+}
+
+// -----------------------------------------------------------------------------
+// Production parsing and serialization
+// -----------------------------------------------------------------------------
+//
+// Deterministic:
+//     A --> BCD
+//
+// Stochastic:
+//     F -- 0.33 --> F[+F]F
+//
+// Also accepted:
+//     0.33: F --> F[+F]F
+//
+// The probability is stored separately from the predecessor and successor.
+// -----------------------------------------------------------------------------
+
+impl Production {
+    pub fn new(predecessor: impl Into<String>, successor: impl Into<String>) -> Self {
+        Self {
+            predecessor: predecessor.into(),
+            successor: successor.into(),
+            probability: None,
+        }
+    }
+
+    pub fn stochastic(
+        predecessor: impl Into<String>,
+        probability: f64,
+        successor: impl Into<String>,
+    ) -> Self {
+        Self {
+            predecessor: predecessor.into(),
+            successor: successor.into(),
+            probability: Some(probability),
+        }
+    }
+
+    fn parse(raw: &str) -> Result<Self, String> {
+        let (lhs, rhs) = raw
+            .split_once("-->")
+            .ok_or_else(|| format!("invalid production: expected '-->': {raw}"))?;
+
+        let lhs = lhs.trim();
+        let successor = rhs.trim().to_string();
+
+        let (predecessor, probability) =
+            if let Some((predecessor, probability)) = lhs.rsplit_once("--") {
+                let probability = probability
+                    .trim()
+                    .parse::<f64>()
+                    .map_err(|_| format!("invalid probability in production: {raw}"))?;
+
+                (predecessor.trim(), Some(probability))
+            } else if let Some((probability, predecessor)) = lhs.split_once(':') {
+                match probability.trim().parse::<f64>() {
+                    Ok(probability) => (predecessor.trim(), Some(probability)),
+                    Err(_) => (lhs, None),
+                }
+            } else {
+                (lhs, None)
+            };
+
+        if predecessor.is_empty() {
+            return Err(format!("production has an empty predecessor: {raw}"));
+        }
+
+        Ok(Self {
+            predecessor: predecessor.to_string(),
+            successor,
+            probability,
+        })
+    }
+
+    fn as_rule_string(&self) -> String {
+        match self.probability {
+            Some(probability) => {
+                format!(
+                    "{} -- {} --> {}",
+                    self.predecessor, probability, self.successor
+                )
+            }
+            None => {
+                format!("{} --> {}", self.predecessor, self.successor)
+            }
+        }
+    }
+}
+
+// Serialize each production as a TOML string.
+impl Serialize for Production {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.as_rule_string())
+    }
+}
+
+// Deserialize each production from a TOML string.
+impl<'de> Deserialize<'de> for Production {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = String::deserialize(deserializer)?;
+
+        Self::parse(&raw).map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct LSystemError(pub String);
+
+impl fmt::Display for LSystemError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::error::Error for LSystemError {}
+
+impl LSystem {
+    pub fn new(axiom: impl Into<String>) -> Self {
+        Self {
+            state: StateConfig {
+                axiom: axiom.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    pub fn from_toml(toml: impl AsRef<str>) -> Result<Self, toml::de::Error> {
+        toml::from_str(toml.as_ref())
+    }
+
+    pub fn to_toml(&self) -> Result<String, toml::ser::Error> {
+        toml::to_string_pretty(self)
+    }
+
+    pub fn add_rule(&mut self, predecessor: char, successor: impl Into<String>) {
+        self.rules
+            .productions
+            .push(Production::new(predecessor.to_string(), successor));
+    }
+
+    pub fn add_stochastic_rule(
+        &mut self,
+        predecessor: char,
+        probability: f64,
+        successor: impl Into<String>,
+    ) {
+        self.rules.productions.push(Production::stochastic(
+            predecessor.to_string(),
+            probability,
+            successor,
+        ));
+    }
+
+    pub fn add_homomorphism(&mut self, predecessor: char, successor: impl Into<String>) {
+        self.rules
+            .homomorphism
+            .push(Production::new(predecessor.to_string(), successor));
+    }
+
+    // Convenience method retaining the original API.
+    // Invalid stochastic distributions cause this method to panic.
+    pub fn derive(&self) -> String {
+        self.try_derive().expect("failed to derive L-system")
+    }
+
+    pub fn try_derive(&self) -> Result<String, LSystemError> {
+        let mut rng = rand::rng();
+        self.derive_with_rng(&mut rng)
+    }
+
+    // Exposes the RNG so callers can provide seeded or reproducible randomness.
+    pub fn derive_with_rng<R: Rng + ?Sized>(&self, rng: &mut R) -> Result<String, LSystemError> {
+        let productions = index_productions(&self.rules.productions)?;
+        validate_stochastic_rules(&productions)?;
+
+        let homomorphism = index_productions(&self.rules.homomorphism)?;
+        validate_homomorphism(&homomorphism)?;
+
+        let mut source = self.state.axiom.clone();
+
+        // Parallel rewriting: every symbol reads from the previous word.
+        for _ in 0..self.state.n {
+            source = derive_once(&source, &productions, rng);
+        }
+
+        // Apply the geometric interpretation rules after derivation.
+        let mut result = String::new();
+
+        for ch in source.chars() {
+            if let Some(alternatives) = homomorphism.get(&ch) {
+                result.push_str(&alternatives[0].successor);
+            } else {
+                result.push(ch);
+            }
+        }
+
+        Ok(result)
+    }
+
+    pub fn turtle(&self) -> Turtle {
+        let mut turtle = Turtle::default();
+
+        turtle.state.rotation = self.view.angle;
+        turtle.state.color = self.view.colors.first().copied().unwrap_or(WHITE);
+
+        turtle
+    }
+
+    pub fn interpreter(&self) -> Interpreter {
+        Interpreter::new(&self.view)
+    }
+}
+
+fn index_productions(
+    productions: &[Production],
+) -> Result<HashMap<char, Vec<&Production>>, LSystemError> {
+    let mut indexed: HashMap<char, Vec<&Production>> = HashMap::new();
+
+    for production in productions {
+        let mut chars = production.predecessor.chars();
+
+        let predecessor = chars
+            .next()
+            .ok_or_else(|| LSystemError("production predecessor cannot be empty".into()))?;
+
+        if chars.next().is_some() {
+            return Err(LSystemError(format!(
+                "this interpreter currently supports single-character predecessors: {}",
+                production.predecessor
+            )));
+        }
+
+        indexed.entry(predecessor).or_default().push(production);
+    }
+
+    Ok(indexed)
+}
+
+fn validate_stochastic_rules(
+    productions: &HashMap<char, Vec<&Production>>,
+) -> Result<(), LSystemError> {
+    for (predecessor, alternatives) in productions {
+        // A single unweighted production is deterministic.
+        if alternatives.len() == 1 && alternatives[0].probability.is_none() {
+            continue;
+        }
+
+        let mut total = 0.0;
+
+        for production in alternatives {
+            let probability = production.probability.ok_or_else(|| {
+                LSystemError(format!(
+                    "all alternatives for '{}' must specify probabilities",
+                    predecessor
+                ))
+            })?;
+
+            if !probability.is_finite() || probability <= 0.0 || probability > 1.0 {
+                return Err(LSystemError(format!(
+                    "invalid probability {} for '{}'; expected a value in (0, 1]",
+                    probability, predecessor
+                )));
+            }
+
+            total += probability;
+        }
+
+        if (total - 1.0).abs() > 1e-6 {
+            return Err(LSystemError(format!(
+                "probabilities for '{}' sum to {}, expected 1.0",
+                predecessor, total
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_homomorphism(
+    homomorphism: &HashMap<char, Vec<&Production>>,
+) -> Result<(), LSystemError> {
+    for (predecessor, alternatives) in homomorphism {
+        if alternatives.len() != 1 {
+            return Err(LSystemError(format!(
+                "homomorphism must have exactly one rule for '{}'",
+                predecessor
+            )));
+        }
+
+        if alternatives[0].probability.is_some() {
+            return Err(LSystemError(format!(
+                "homomorphism rules cannot have probabilities: '{}'",
+                predecessor
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+fn derive_once<R: Rng + ?Sized>(
+    source: &str,
+    productions: &HashMap<char, Vec<&Production>>,
+    rng: &mut R,
+) -> String {
+    let mut result = String::new();
+
+    for ch in source.chars() {
+        if let Some(alternatives) = productions.get(&ch) {
+            let selected = select_production(alternatives, rng);
+            result.push_str(&selected.successor);
+        } else {
+            // No applicable production: preserve the symbol.
+            result.push(ch);
+        }
+    }
+
+    result
+}
+
+fn select_production<'a, R: Rng + ?Sized>(
+    alternatives: &[&'a Production],
+    rng: &mut R,
+) -> &'a Production {
+    if alternatives.len() == 1 && alternatives[0].probability.is_none() {
+        return alternatives[0];
+    }
+
+    let sample: f64 = rng.random_range(0.0..1.0);
+    let mut cumulative = 0.0;
+
+    for production in alternatives {
+        cumulative += production.probability.unwrap_or(0.0);
+
+        if sample < cumulative {
+            return production;
+        }
+    }
+
+    alternatives
+        .last()
+        .expect("production alternatives cannot be empty")
 }
 
 mod color_serde {
