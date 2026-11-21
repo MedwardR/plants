@@ -34,7 +34,7 @@ impl Drawing {
             .chain(
                 self.polygons
                     .iter()
-                    .flat_map(|polygon| polygon.vertices.iter().copied())
+                    .flat_map(|polygon| polygon.vertices.iter().copied()),
             )
             .collect()
     }
@@ -53,26 +53,16 @@ impl Line {
 
 impl Polygon {
     pub fn new(vertices: Vec<Vec2>, color: Color) -> Self {
-        Self {
-            vertices,
-            color
-        }
+        Self { vertices, color }
     }
 }
 
 pub fn draw_polygon(points: impl AsRef<[Vec2]>, color: Color) -> bool {
     if let Some(triangles) = triangulate_polygon(points.as_ref()) {
-        
         for triangle in triangles {
-            draw_triangle(
-                triangle[0],
-                triangle[1],
-                triangle[2],
-                color,
-            );
+            draw_triangle(triangle[0], triangle[1], triangle[2], color);
         }
         true
-        
     } else {
         eprintln!("Could not triangulate polygon");
         false
@@ -83,7 +73,7 @@ fn cross(a: Vec2, b: Vec2, c: Vec2) -> f32 {
     (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
 }
 
-fn point_in_triangle(p: Vec2, a: Vec2, b: Vec2, c: Vec2, orientation: f32,) -> bool {
+fn point_in_triangle(p: Vec2, a: Vec2, b: Vec2, c: Vec2, orientation: f32) -> bool {
     let eps = 0.00001;
 
     cross(a, b, p) * orientation >= -eps
@@ -139,9 +129,7 @@ fn triangulate_polygon(points: &[Vec2]) -> Option<Vec<[Vec2; 3]>> {
                     continue;
                 }
 
-                if point_in_triangle(
-                    points[idx], a, b, c, orientation
-                ) {
+                if point_in_triangle(points[idx], a, b, c, orientation) {
                     contains_point = true;
                     break;
                 }

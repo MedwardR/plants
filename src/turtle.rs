@@ -1,5 +1,5 @@
-use macroquad::prelude::*;
 use crate::angle::Angle;
+use macroquad::prelude::*;
 
 pub struct Turtle {
     pub state: TurtleState,
@@ -46,10 +46,7 @@ impl Turtle {
     }
 
     pub fn forward(&mut self, amount: f32) {
-        let direction = Vec2::new(
-            self.state.rotation.cos(),
-            self.state.rotation.sin(),
-        );
+        let direction = Vec2::new(self.state.rotation.cos(), self.state.rotation.sin());
 
         self.state.position += direction * amount;
     }
@@ -96,7 +93,7 @@ impl Turtle {
     pub fn end_polygon(&mut self) {
         self.polygon_active = false;
     }
-    
+
     pub fn record_vertex(&mut self) {
         if self.polygon_active {
             self.polygon.push(self.state.position);

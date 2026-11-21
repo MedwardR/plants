@@ -4,15 +4,14 @@ pub mod drawing;
 pub mod interpreter;
 pub mod turtle;
 
+use crate::derivation::LSystem;
+use crate::drawing::{Drawing, Line, Polygon, draw_polygon};
+use macroquad::prelude::*;
 use std::fs;
 use std::ops::{Add, Mul};
-use macroquad::prelude::*;
-use crate::derivation::LSystem;
-use crate::drawing::{draw_polygon, Drawing, Line, Polygon};
 
 #[macroquad::main("Terrarium")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-
     let toml = fs::read_to_string("./examples/leafy.toml")?;
     let mut engine = LSystem::from_toml(toml)?;
 
@@ -45,13 +44,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             screen_height() - PADDING * 2.0,
         );
 
-        let scale =
-            screen_dimensions.x.min(screen_dimensions.y) /
-            content_dimensions.w.max(content_dimensions.h);
+        let scale = screen_dimensions.x.min(screen_dimensions.y)
+            / content_dimensions.w.max(content_dimensions.h);
 
         let offset = Vec2::new(
-            PADDING + (screen_dimensions.x - content_dimensions.w * scale) / 2.0 - content_dimensions.x * scale,
-            PADDING + (screen_dimensions.y - content_dimensions.h * scale) / 2.0 - content_dimensions.y * scale,
+            PADDING + (screen_dimensions.x - content_dimensions.w * scale) / 2.0
+                - content_dimensions.x * scale,
+            PADDING + (screen_dimensions.y - content_dimensions.h * scale) / 2.0
+                - content_dimensions.y * scale,
         );
 
         for line in &drawing.lines {
@@ -61,7 +61,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             draw_line(a.x, a.y, b.x, b.y, line.thickness, line.color);
         }
         for polygon in &drawing.polygons {
-            let transformed: Vec<_> = polygon.vertices
+            let transformed: Vec<_> = polygon
+                .vertices
                 .iter()
                 .map(|v| v.mul(scale).add(offset))
                 .collect();
@@ -96,8 +97,7 @@ fn generate_drawing(engine: &LSystem) -> Drawing {
             );
             lines.push(value);
             lines_thinness.push(turtle.state.thinness);
-        }
-        else if vertices.len() > 2 {
+        } else if vertices.len() > 2 {
             let value = Polygon::new(vertices, turtle.state.color);
             polygons.push(value);
         }
@@ -115,10 +115,7 @@ fn generate_drawing(engine: &LSystem) -> Drawing {
         }
     }
 
-    Drawing {
-        lines,
-        polygons,
-    }
+    Drawing { lines, polygons }
 }
 
 fn calculate_boundaries(drawing: &Drawing) -> Rect {

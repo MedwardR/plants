@@ -1,10 +1,10 @@
 use crate::angle::Angle;
 use crate::interpreter::Interpreter;
 use crate::turtle::Turtle;
+use macroquad::color::Color;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::mem;
-use macroquad::color::Color;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -62,8 +62,7 @@ impl LSystem {
             for ch in source.chars() {
                 if let Some(replacement) = self.productions.get(&ch.to_string()) {
                     result += replacement;
-                }
-                else {
+                } else {
                     result.push(ch);
                 }
             }
@@ -73,8 +72,7 @@ impl LSystem {
         for ch in source.chars() {
             if let Some(replacement) = self.homomorphism.get(&ch.to_string()) {
                 result += replacement;
-            }
-            else {
+            } else {
                 result.push(ch);
             }
         }
@@ -91,7 +89,7 @@ impl LSystem {
         turtle.state.color = self.view.colors[0];
         turtle
     }
-    
+
     pub fn interpreter(&self) -> Interpreter {
         Interpreter::new(&self.view)
     }
@@ -112,10 +110,7 @@ mod color_serde {
     use macroquad::color::Color;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    pub fn serialize<S>(
-        colors: &Vec<Color>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(colors: &Vec<Color>, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -137,9 +132,7 @@ mod color_serde {
         hex_colors.serialize(serializer)
     }
 
-    pub fn deserialize<'de, D>(
-        deserializer: D,
-    ) -> Result<Vec<Color>, D::Error>
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<Color>, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -150,8 +143,7 @@ mod color_serde {
             .map(|hex| {
                 let hex = hex.strip_prefix('#').unwrap_or(hex);
 
-                let value = u32::from_str_radix(hex, 16)
-                    .map_err(serde::de::Error::custom)?;
+                let value = u32::from_str_radix(hex, 16).map_err(serde::de::Error::custom)?;
 
                 match hex.len() {
                     6 => Ok(Color::from_rgba(
@@ -166,9 +158,7 @@ mod color_serde {
                         (value >> 8) as u8,
                         value as u8,
                     )),
-                    _ => Err(serde::de::Error::custom(
-                        "expected #RRGGBB or #RRGGBBAA",
-                    )),
+                    _ => Err(serde::de::Error::custom("expected #RRGGBB or #RRGGBBAA")),
                 }
             })
             .collect()
