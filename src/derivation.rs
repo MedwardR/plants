@@ -1,8 +1,9 @@
 use crate::angle::Angle;
 use crate::interpreter::Interpreter;
 use crate::turtle::Turtle;
-use macroquad::color::{Color, WHITE};
-use rand::{Rng, RngExt};
+use macroquad::color::Color;
+use rand::rngs::StdRng;
+use rand::{Rng, RngExt, SeedableRng};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
 use std::fmt;
@@ -50,10 +51,6 @@ pub struct ViewConfig {
     pub thickness: f32,
 }
 
-// -----------------------------------------------------------------------------
-// Defaults
-// -----------------------------------------------------------------------------
-
 impl Default for LSystem {
     fn default() -> Self {
         Self {
@@ -89,27 +86,11 @@ impl Default for ViewConfig {
         Self {
             angle: Angle::ZERO,
             delta: Angle::from_degrees(35.0),
-            colors: vec![WHITE],
+            colors: vec![macroquad::color::WHITE],
             thickness: 4.0,
         }
     }
 }
-
-// -----------------------------------------------------------------------------
-// Production parsing and serialization
-// -----------------------------------------------------------------------------
-//
-// Deterministic:
-//     A --> BCD
-//
-// Stochastic:
-//     F -- 0.33 --> F[+F]F
-//
-// Also accepted:
-//     0.33: F --> F[+F]F
-//
-// The probability is stored separately from the predecessor and successor.
-// -----------------------------------------------------------------------------
 
 impl Production {
     pub fn new(predecessor: impl Into<String>, successor: impl Into<String>) -> Self {
@@ -168,7 +149,7 @@ impl Production {
         })
     }
 
-    fn as_rule_string(&self) -> String {
+    fn to_string(&self) -> String {
         match self.probability {
             Some(probability) => {
                 format!(
@@ -183,38 +164,24 @@ impl Production {
     }
 }
 
-// Serialize each production as a TOML string.
 impl Serialize for Production {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        serializer.serialize_str(&self.as_rule_string())
+        serializer.serialize_str(&self.to_string())
     }
 }
 
-// Deserialize each production from a TOML string.
 impl<'de> Deserialize<'de> for Production {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         let raw = String::deserialize(deserializer)?;
-
         Self::parse(&raw).map_err(serde::de::Error::custom)
     }
 }
-
-#[derive(Debug, Clone)]
-pub struct LSystemError(pub String);
-
-impl fmt::Display for LSystemError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl std::error::Error for LSystemError {}
 
 impl LSystem {
     pub fn new(axiom: impl Into<String>) -> Self {
@@ -235,44 +202,9 @@ impl LSystem {
         toml::to_string_pretty(self)
     }
 
-    pub fn add_rule(&mut self, predecessor: char, successor: impl Into<String>) {
-        self.rules
-            .productions
-            .push(Production::new(predecessor.to_string(), successor));
-    }
+    pub fn derive(&self, seed: u64) -> Result<String, LSystemError> {
+        let mut rng = StdRng::seed_from_u64(seed);
 
-    pub fn add_stochastic_rule(
-        &mut self,
-        predecessor: char,
-        probability: f64,
-        successor: impl Into<String>,
-    ) {
-        self.rules.productions.push(Production::stochastic(
-            predecessor.to_string(),
-            probability,
-            successor,
-        ));
-    }
-
-    pub fn add_homomorphism(&mut self, predecessor: char, successor: impl Into<String>) {
-        self.rules
-            .homomorphism
-            .push(Production::new(predecessor.to_string(), successor));
-    }
-
-    // Convenience method retaining the original API.
-    // Invalid stochastic distributions cause this method to panic.
-    pub fn derive(&self) -> String {
-        self.try_derive().expect("failed to derive L-system")
-    }
-
-    pub fn try_derive(&self) -> Result<String, LSystemError> {
-        let mut rng = rand::rng();
-        self.derive_with_rng(&mut rng)
-    }
-
-    // Exposes the RNG so callers can provide seeded or reproducible randomness.
-    pub fn derive_with_rng<R: Rng + ?Sized>(&self, rng: &mut R) -> Result<String, LSystemError> {
         let productions = index_productions(&self.rules.productions)?;
         validate_stochastic_rules(&productions)?;
 
@@ -281,30 +213,24 @@ impl LSystem {
 
         let mut source = self.state.axiom.clone();
 
-        // Parallel rewriting: every symbol reads from the previous word.
         for _ in 0..self.state.n {
-            source = derive_once(&source, &productions, rng);
+            source = derive_once(&source, &productions, &mut rng);
         }
+        source = derive_once(&source, &homomorphism, &mut rng);
 
-        // Apply the geometric interpretation rules after derivation.
-        let mut result = String::new();
-
-        for ch in source.chars() {
-            if let Some(alternatives) = homomorphism.get(&ch) {
-                result.push_str(&alternatives[0].successor);
-            } else {
-                result.push(ch);
-            }
-        }
-
-        Ok(result)
+        Ok(source)
     }
 
     pub fn turtle(&self) -> Turtle {
         let mut turtle = Turtle::default();
 
         turtle.state.rotation = self.view.angle;
-        turtle.state.color = self.view.colors.first().copied().unwrap_or(WHITE);
+        turtle.state.color = self
+            .view
+            .colors
+            .first()
+            .copied()
+            .unwrap_or(macroquad::color::WHITE);
 
         turtle
     }
@@ -413,7 +339,6 @@ fn derive_once<R: Rng + ?Sized>(
             let selected = select_production(alternatives, rng);
             result.push_str(&selected.successor);
         } else {
-            // No applicable production: preserve the symbol.
             result.push(ch);
         }
     }
@@ -444,6 +369,17 @@ fn select_production<'a, R: Rng + ?Sized>(
         .last()
         .expect("production alternatives cannot be empty")
 }
+
+#[derive(Debug, Clone)]
+pub struct LSystemError(pub String);
+
+impl fmt::Display for LSystemError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::error::Error for LSystemError {}
 
 mod color_serde {
     use macroquad::color::Color;

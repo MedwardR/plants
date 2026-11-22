@@ -6,14 +6,17 @@ pub mod turtle;
 
 use crate::derivation::LSystem;
 use crate::drawing::{Drawing, Line, Polygon, draw_polygon};
+use ::rand::{Rng, rngs::ThreadRng};
 use macroquad::prelude::*;
+use std::error::Error;
 use std::fs;
 use std::ops::{Add, Mul};
 
-#[macroquad::main("Terrarium")]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[macroquad::main("Plants")]
+async fn main() -> Result<(), Box<dyn Error>> {
     let toml = fs::read_to_string("./examples/kelp.toml")?;
     let mut engine = LSystem::from_toml(toml)?;
+    let seed = ThreadRng::default().next_u64();
 
     let mut drawing = Drawing::new();
     let mut content_dimensions = Rect::default();
@@ -32,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         if drawing_invalid {
-            drawing = generate_drawing(&engine);
+            drawing = generate_drawing(&engine, seed)?;
             content_dimensions = calculate_boundaries(&drawing);
             drawing_invalid = false;
         }
@@ -75,8 +78,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-fn generate_drawing(engine: &LSystem) -> Drawing {
-    let instructions = engine.derive();
+fn generate_drawing(engine: &LSystem, seed: u64) -> Result<Drawing, Box<dyn Error>> {
+    let instructions = engine.derive(seed)?;
 
     let mut lines: Vec<Line> = Vec::new();
     let mut lines_thinness: Vec<usize> = Vec::new();
@@ -115,7 +118,7 @@ fn generate_drawing(engine: &LSystem) -> Drawing {
         }
     }
 
-    Drawing { lines, polygons }
+    Ok(Drawing { lines, polygons })
 }
 
 fn calculate_boundaries(drawing: &Drawing) -> Rect {
